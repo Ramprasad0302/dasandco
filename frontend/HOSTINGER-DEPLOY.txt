@@ -1,0 +1,13 @@
+DAS & CO FRONTEND — HOSTINGER
+
+1. Upload the PHP API into public_html/api first and confirm
+   https://dasandco.online/api/health
+   returns success.
+2. Hostinger -> Websites -> dasandco.online -> Deployments.
+3. Upload DAS-CO-FRONTEND-HOSTINGER.zip and redeploy.
+4. Build command: npm install && npm run build
+5. Start command: npm start
+6. Node.js 20 or newer.
+
+The site signs in through https://dasandco.online/api
+No frontend environment variable is required.
