@@ -49,9 +49,9 @@ const getTransactions = async (
       transactions.reduce(
         (sum, transaction) =>
           sum +
-          Number(
+          (Number(
             transaction.gold_added
-          ),
+          ) || 0),
         0
       );
 
@@ -59,9 +59,9 @@ const getTransactions = async (
       transactions.reduce(
         (sum, transaction) =>
           sum +
-          Number(
+          (Number(
             transaction.gold_deducted
-          ),
+          ) || 0),
         0
       );
 
@@ -84,7 +84,8 @@ const getTransactions = async (
       ...t,
       balance_after: recomputedById.get(t.id) ?? t.balance_after,
     }));
-    const balance = chronological.length ? running : opening;
+    // Current balance = opening + total added − total deducted.
+    const balance = opening + totalAdded - totalDeducted;
 
     return res.status(200).json({
       success: true,

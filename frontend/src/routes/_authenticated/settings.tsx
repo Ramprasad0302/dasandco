@@ -56,11 +56,28 @@ function SettingsPage() {
   });
 
   // ---------------------------------------------------
-  // Reset — permanently deletes all clients, orders,
-  // expenses and gold ledger entries.
+  // Reset — permanently deletes all orders, expenses and
+  // gold ledger entries. Clients are kept with their name
+  // and default earning %. The client list is snapshotted
+  // first and any client missing afterwards is re-created,
+  // so names and percentages survive even if the server
+  // removed them.
   // ---------------------------------------------------
   const resetData = useMutation({
-    mutationFn: () => apiFetch("/settings/reset", { method: "POST" }),
+    mutationFn: async () => {
+      const before: any[] = (await apiFetch<any>("/clients")).clients || [];
+      const result = await apiFetch<any>("/settings/reset", { method: "POST" });
+      const after: any[] = (await apiFetch<any>("/clients")).clients || [];
+      const remaining = new Set(after.map((c) => String(c.client_name || "").trim().toLowerCase()));
+      const missing = before.filter((c) => !remaining.has(String(c.client_name || "").trim().toLowerCase()));
+      for (const client of [...missing].reverse()) {
+        await apiFetch("/clients", {
+          method: "POST",
+          body: JSON.stringify({ client_name: client.client_name, default_percentage: Number(client.default_percentage ?? 2) }),
+        });
+      }
+      return result;
+    },
     onSuccess: () => {
       qc.invalidateQueries();
       setResetOpen(false);
@@ -117,10 +134,11 @@ function SettingsPage() {
       {importData.isError && <p className="mt-3 text-sm text-red-300">{(importData.error as Error).message}</p>}
       {importData.isSuccess && <p className="mt-3 text-sm text-emerald-300">Data imported successfully.</p>}
       {resetData.isError && <p className="mt-3 text-sm text-red-300">{(resetData.error as Error).message}</p>}
+      {resetData.isSuccess && <p className="mt-3 text-sm text-emerald-300">All business data was reset. Client names and default percentages were kept.</p>}
 
       {resetOpen && (
         <div className="mt-5 rounded-xl border border-red-500/30 bg-red-500/5 p-5">
-          <p className="flex items-center gap-2 text-sm font-medium text-red-300"><AlertTriangle size={16} /> This permanently deletes every client, order, expense and gold entry. This cannot be undone.</p>
+          <p className="flex items-center gap-2 text-sm font-medium text-red-300"><AlertTriangle size={16} /> This permanently deletes every order, expense and gold entry. Client names and default earning % are kept. This cannot be undone.</p>
           <p className="mt-3 text-xs text-[#b8afa5]">Consider exporting a backup first. Type <b>RESET</b> below to confirm.</p>
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <StudioInput className="max-w-[180px]" value={resetConfirm} onChange={(e) => setResetConfirm(e.target.value)} placeholder="Type RESET" />

@@ -77,11 +77,24 @@ function GoldVault() {
     return <AppShell title="Gold Vault"><div className="studio-card p-8 text-center text-[#9a9188]">Loading Gold Vault…</div></AppShell>;
   }
 
+  // Current balance is always opening + total added − total deducted.
+  // Totals and per-row running balances are computed here from the
+  // ledger itself rather than trusting stored balance_after values,
+  // which go stale when the opening balance changes or rows are deleted.
+  const rawTransactions: any[] = data?.transactions || [];
   const opening = Number(data?.opening || 0);
-  const balance = Number(data?.balance || 0);
-  const added = Number(data?.totalAdded || 0);
-  const deducted = Number(data?.totalDeducted || 0);
+  const added = rawTransactions.reduce((sum, t) => sum + (Number(t.gold_added) || 0), 0);
+  const deducted = rawTransactions.reduce((sum, t) => sum + (Number(t.gold_deducted) || 0), 0);
+  const balance = opening + added - deducted;
   const rate = Number(data?.rate || 0);
+
+  const runningById = new Map<number, number>();
+  let running = opening;
+  for (const t of [...rawTransactions].sort((a, b) => Number(a.id) - Number(b.id))) {
+    running += (Number(t.gold_added) || 0) - (Number(t.gold_deducted) || 0);
+    runningById.set(Number(t.id), running);
+  }
+  const transactions = rawTransactions.map((t) => ({ ...t, balance_after: runningById.get(Number(t.id)) ?? t.balance_after }));
 
   return (
     <AppShell title="Gold Vault">
@@ -91,7 +104,7 @@ function GoldVault() {
         description="Track every gram entering and leaving the studio. CAD earnings, casting losses and manual adjustments remain visible in one ledger."
         action={
           <div className="flex flex-wrap gap-2">
-            <StudioButton variant="outline" onClick={() => downloadPDF("das-and-co-gold-vault.pdf", "DAS & CO - Gold Vault Ledger", (data?.transactions || []).map((t: any) => ({ Date: formatDate(t.transaction_date), Type: t.transaction_type, Added: `${Number(t.gold_added || 0).toFixed(3)} g`, Deducted: `${Number(t.gold_deducted || 0).toFixed(3)} g`, Balance: `${Number(t.balance_after || 0).toFixed(3)} g`, Remarks: t.remarks || t.notes || "" })), { subtitle: `Opening ${formatGold(opening)} · Current balance ${formatGold(balance)}`, summary: [`Total added: ${formatGold(added)}`, `Total deducted: ${formatGold(deducted)}`, `Current balance: ${formatGold(balance)}`] })}><Download size={15} /> Download vault</StudioButton>
+            <StudioButton variant="outline" onClick={() => downloadPDF("das-and-co-gold-vault.pdf", "DAS & CO - Gold Vault Ledger", transactions.map((t: any) => ({ Date: formatDate(t.transaction_date), Type: t.transaction_type, Added: `${Number(t.gold_added || 0).toFixed(3)} g`, Deducted: `${Number(t.gold_deducted || 0).toFixed(3)} g`, Balance: `${Number(t.balance_after || 0).toFixed(3)} g`, Remarks: t.remarks || t.notes || "" })), { subtitle: `Opening ${formatGold(opening)} · Current balance ${formatGold(balance)}`, summary: [`Total added: ${formatGold(added)}`, `Total deducted: ${formatGold(deducted)}`, `Current balance: ${formatGold(balance)}`] })}><Download size={15} /> Download vault</StudioButton>
             <StudioButton onClick={() => setOpen(true)}><Plus size={16} /> Add transaction</StudioButton>
           </div>
         }
@@ -128,7 +141,7 @@ function GoldVault() {
               </tr>
             </thead>
             <tbody>
-              {(data?.transactions || []).map((t: any) => (
+              {transactions.map((t: any) => (
                 <tr key={t.id}>
                   <td className="font-medium text-[#e6ddd0]">{formatDate(t.transaction_date)}</td>
                   <td>
@@ -153,7 +166,7 @@ function GoldVault() {
                   </td>
                 </tr>
               ))}
-              {!data?.transactions?.length && (
+              {!transactions.length && (
                 <tr><td colSpan={7} className="py-12 text-center text-[#756e66]">No transactions yet.</td></tr>
               )}
             </tbody>
